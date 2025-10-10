@@ -1,26 +1,91 @@
-cho<!doctype html>
+<!doctype html>
 <html lang="ja">
 <head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>Walk on GLB — A-Frame</title>
-  <script src="https://aframe.io/releases/1.5.0/aframe.min.js"></script>
-  <!-- 視点操作＆WASD移動はデフォルトでOK（look-controls / wasd-controls） -->
-  <style>html,body{margin:0;height:100%}</style>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>GLB — Motion → Autorotate</title>
+<script src="https://aframe.io/releases/1.5.0/aframe.min.js"></script>
+<style>
+  html,body{margin:0;height:100%}
+  .hint{
+    position:fixed;left:10px;bottom:10px;color:#e0e0e0;
+    font:12px/1.5 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;
+    background:rgba(0,0,0,.35);padding:6px 8px;border-radius:6px
+  }
+</style>
 </head>
 <body>
+  <div class="hint">最初にカメラが数カット移動 → 自動回転に移行</div>
+
   <a-scene renderer="colorManagement:true" background="color: #c2c2c2">
-    <!-- プレイヤー（高さ1.6mのカメラ） -->
-    <a-entity id="rig" position="0 1.6 5" movement-controls>
-      <a-entity camera look-controls wasd-controls="acceleration:30"></a-entity>
+    <!-- ライティング（お好みで調整） -->
+    <a-entity light="type:ambient;intensity:0.6"></a-entity>
+    <a-entity light="type:directional;intensity:0.9" position="2 4 2"></a-entity>
+
+    <!-- モデル（親に auto-spin を付けて、後から起動） -->
+    <a-entity id="modelRoot" position="0 0 0" rotation="0 0 0" auto-spin="speedDegPerSec:4; enabled:false">
+      <a-entity gltf-model="url(./seicho.glb)" position="0 0 0" rotation="0 0 0" scale="1 1 1"></a-entity>
     </a-entity>
 
-    <!-- GLB配置：自分のglbに差し替え（相対パスでOK） -->
-    <a-entity gltf-model="url(./seicho.glb)" position="0 0 0" rotation="0 0 0" scale="1 1 1"></a-entity>
+    <!-- 観客（=カメラ）: 最初は前方やや上から。ここをアニメで動かす -->
+    <a-entity id="rig" position="0 1.8 8" rotation="0 0 0">
+      <a-entity camera look-controls="reverseMouseDrag:false; pointerLockEnabled:false"></a-entity>
 
-    <!-- 簡易ライト -->
-    <a-entity light="type:ambient;intensity:0.6"></a-entity>
-    <a-entity light="type:directional;intensity:0.8" position="1 2 1"></a-entity>
+      <!-- ▼ モーション：複雑めに3ステップ連続（位置＋向き） -->
+      <!-- STEP1: 前進しつつ少し左へ寄る -->
+      <a-animation id="step1-pos" attribute="position" dur="3500" easing="easeInOutQuad"
+                   to="-3 2.2 5"></a-animation>
+      <a-animation id="step1-rot" attribute="rotation" dur="3500" easing="easeInOutQuad"
+                   to="-5 15 0"></a-animation>
+
+      <!-- STEP2: 右上へ振り抜き（俯瞰寄り） -->
+      <a-animation id="step2-pos" attribute="position" dur="4000" easing="easeInOutCubic"
+                   begin="step1done" to="4 3.5 3"></a-animation>
+      <a-animation id="step2-rot" attribute="rotation" dur="4000" easing="easeInOutCubic"
+                   begin="step1done" to="-12 -20 0"></a-animation>
+
+      <!-- STEP3: グッと寄って真横パン気味に -->
+      <a-animation id="step3-pos" attribute="position" dur="4000" easing="easeInOutCubic"
+                   begin="step2done" to="0 2.0 2.2"></a-animation>
+      <a-animation id="step3-rot" attribute="rotation" dur="4000" easing="easeInOutCubic"
+                   begin="step2done" to="-6 0 0"></a-animation>
+    </a-entity>
   </a-scene>
+
+  <script>
+    // 自動回転コンポーネント（最初は停止、イベントで起動）
+    AFRAME.registerComponent('auto-spin', {
+      schema: { speedDegPerSec: {default: 6}, enabled: {default: false} },
+      tick: function (t, dt) {
+        if (!this.data.enabled) return;
+        const rot = this.el.getAttribute('rotation');
+        rot.y += (this.data.speedDegPerSec * (dt/1000)); // deg/sec
+        this.el.setAttribute('rotation', rot);
+      }
+    });
+
+    // アニメーション完了→次のステップへ、最後に自動回転をON
+    const rig = document.querySelector('#rig');
+    const modelRoot = document.querySelector('#modelRoot');
+
+    // step1 完了で step2 を開始
+    document.querySelector('#step1-pos').addEventListener('animationend', () => {
+      rig.emit('step1done');
+    });
+    // step2 完了で step3 を開始
+    document.querySelector('#step2-pos').addEventListener('animationend', () => {
+      rig.emit('step2done');
+    });
+    // step3 完了で 自動回転 有効化
+    document.querySelector('#step3-pos').addEventListener('animationend', () => {
+      // 少し“タメ”を付けたい場合は setTimeout の遅延を増やす（ms）
+      setTimeout(() => {
+        // auto-spin の enabled を true に切替
+        const data = modelRoot.getAttribute('auto-spin');
+        data.enabled = true;
+        modelRoot.setAttribute('auto-spin', data);
+      }, 600);
+    });
+  </script>
 </body>
 </html>
