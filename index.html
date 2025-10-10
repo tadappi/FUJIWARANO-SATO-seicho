@@ -15,28 +15,24 @@
     </style>
   </head>
   <body>
-    <div class="hint">最初にカメラが数カット移動 → 終了後にモデルがゆっくり自動回転</div>
+    <div class="hint">6秒上昇→3秒静止→モデルがゆっくり自動回転</div>
 
     <a-scene renderer="colorManagement:true" background="color:#c2c2c2">
-      <!-- 照明 -->
+      <!-- ライト -->
       <a-entity light="type:ambient;intensity:0.6"></a-entity>
       <a-entity light="type:directional;intensity:0.9" position="2 4 2"></a-entity>
 
-      <!-- GLBモデル -->
+      <!-- モデル（自動回転はあとでONにする） -->
       <a-entity id="modelRoot" auto-spin="speedDegPerSec:4; enabled:false">
         <a-entity gltf-model="url(./seicho.glb)" position="0 0 0" rotation="0 0 0" scale="1 1 1"></a-entity>
       </a-entity>
 
       <!-- カメラ -->
       <a-entity id="rig"
-        position="-3 1.8 0"
-        rotation="-15 180 0"
-        animation__step1pos="property: position; to: -3 2.2 5; dur: 6000; easing: easeInOutQuad"
-        animation__step1rot="property: rotation; to: -5 15 0; dur: 6000; easing: easeInOutQuad"
-        animation__step2pos="property: position; to: 4 3.5 3; dur: 6000; easing: easeInOutCubic; startEvents: step1done"
-        animation__step2rot="property: rotation; to: -12 -20 0; dur: 6000; easing: easeInOutCubic; startEvents: step1done"
-        animation__step3pos="property: position; to: 0 2.0 2.2; dur: 6000; easing: easeInOutCubic; startEvents: step2done"
-        animation__step3rot="property: rotation; to: -6 0 0; dur: 6000; easing: easeInOutCubic; startEvents: step2done">
+        position="0 1.0 5"
+        rotation="-35 0 0"
+        animation__move="property: position; to: 0 3 15; dur: 6000; easing: easeInOutQuad"
+        animation__look="property: rotation; to: -25 0 0; dur: 6000; easing: easeInOutQuad">
         <a-entity camera look-controls="reverseMouseDrag:false; pointerLockEnabled:false"></a-entity>
       </a-entity>
     </a-scene>
@@ -56,22 +52,13 @@
       const rig = document.querySelector('#rig');
       const modelRoot = document.querySelector('#modelRoot');
 
-      // アニメーション完了イベント同期
-      let s1p=false,s1r=false,s2p=false,s2r=false;
-
-      rig.addEventListener('animationcomplete__step1pos', () => { s1p=true; if(s1p&&s1r) rig.emit('step1done'); });
-      rig.addEventListener('animationcomplete__step1rot', () => { s1r=true; if(s1p&&s1r) rig.emit('step1done'); });
-
-      rig.addEventListener('animationcomplete__step2pos', () => { s2p=true; if(s2p&&s2r) rig.emit('step2done'); });
-      rig.addEventListener('animationcomplete__step2rot', () => { s2r=true; if(s2p&&s2r) rig.emit('step2done'); });
-
-      // 最終ステップ完了 → 少し待って自動回転ON
-      rig.addEventListener('animationcomplete__step3pos', () => {
+      // 6秒の移動完了後 → 3秒待機 → 自動回転ON
+      rig.addEventListener('animationcomplete__move', () => {
         setTimeout(() => {
           const data = modelRoot.getAttribute('auto-spin');
           data.enabled = true;
           modelRoot.setAttribute('auto-spin', data);
-        }, 800);
+        }, 3000); // ← 停止時間（3秒）
       });
     </script>
   </body>
