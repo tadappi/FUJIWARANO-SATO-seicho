@@ -18,73 +18,70 @@
   <div class="hint">最初にカメラが数カット移動 → 自動回転に移行</div>
 
   <a-scene renderer="colorManagement:true" background="color: #c2c2c2">
-    <!-- ライティング（お好みで調整） -->
+    <!-- ライト -->
     <a-entity light="type:ambient;intensity:0.6"></a-entity>
     <a-entity light="type:directional;intensity:0.9" position="2 4 2"></a-entity>
 
-    <!-- モデル（親に auto-spin を付けて、後から起動） -->
-    <a-entity id="modelRoot" position="0 0 0" rotation="0 0 0" auto-spin="speedDegPerSec:4; enabled:false">
+    <!-- モデル（自動回転は後でONにする） -->
+    <a-entity id="modelRoot" auto-spin="speedDegPerSec:4; enabled:false">
       <a-entity gltf-model="url(./seicho.glb)" position="0 0 0" rotation="0 0 0" scale="1 1 1"></a-entity>
     </a-entity>
 
-    <!-- 観客（=カメラ）: 最初は前方やや上から。ここをアニメで動かす -->
+    <!-- 観客（=カメラ）。ここにキーフレームを列挙 -->
     <a-entity id="rig" position="0 1.8 8" rotation="0 0 0">
       <a-entity camera look-controls="reverseMouseDrag:false; pointerLockEnabled:false"></a-entity>
 
-      <!-- ▼ モーション：複雑めに3ステップ連続（位置＋向き） -->
       <!-- STEP1: 前進しつつ少し左へ寄る -->
-      <a-animation id="step1-pos" attribute="position" dur="3500" easing="easeInOutQuad"
-                   to="-3 2.2 5"></a-animation>
-      <a-animation id="step1-rot" attribute="rotation" dur="3500" easing="easeInOutQuad"
-                   to="-5 15 0"></a-animation>
+      <a-entity
+        animation__step1pos="property: position; to: -3 2.2 5; dur: 3500; easing: easeInOutQuad"
+        animation__step1rot="property: rotation; to: -5 15 0; dur: 3500; easing: easeInOutQuad"
+      ></a-entity>
 
-      <!-- STEP2: 右上へ振り抜き（俯瞰寄り） -->
-      <a-animation id="step2-pos" attribute="position" dur="4000" easing="easeInOutCubic"
-                   begin="step1done" to="4 3.5 3"></a-animation>
-      <a-animation id="step2-rot" attribute="rotation" dur="4000" easing="easeInOutCubic"
-                   begin="step1done" to="-12 -20 0"></a-animation>
+      <!-- STEP2: 右上へ振り抜き（STEP1完了で開始） -->
+      <a-entity
+        animation__step2pos="property: position; to: 4 3.5 3; dur: 4000; easing: easeInOutCubic; startEvents: step1done"
+        animation__step2rot="property: rotation; to: -12 -20 0; dur: 4000; easing: easeInOutCubic; startEvents: step1done"
+      ></a-entity>
 
-      <!-- STEP3: グッと寄って真横パン気味に -->
-      <a-animation id="step3-pos" attribute="position" dur="4000" easing="easeInOutCubic"
-                   begin="step2done" to="0 2.0 2.2"></a-animation>
-      <a-animation id="step3-rot" attribute="rotation" dur="4000" easing="easeInOutCubic"
-                   begin="step2done" to="-6 0 0"></a-animation>
+      <!-- STEP3: グッと寄って真横パン気味に（STEP2完了で開始） -->
+      <a-entity
+        animation__step3pos="property: position; to: 0 2.0 2.2; dur: 4000; easing: easeInOutCubic; startEvents: step2done"
+        animation__step3rot="property: rotation; to: -6 0 0; dur: 4000; easing: easeInOutCubic; startEvents: step2done"
+      ></a-entity>
     </a-entity>
   </a-scene>
 
   <script>
-    // 自動回転コンポーネント（最初は停止、イベントで起動）
+    // 自動回転コンポーネント
     AFRAME.registerComponent('auto-spin', {
-      schema: { speedDegPerSec: {default: 6}, enabled: {default: false} },
+      schema: { speedDegPerSec: {default: 4}, enabled: {default: false} },
       tick: function (t, dt) {
         if (!this.data.enabled) return;
         const rot = this.el.getAttribute('rotation');
-        rot.y += (this.data.speedDegPerSec * (dt/1000)); // deg/sec
+        rot.y += this.data.speedDegPerSec * (dt / 1000);
         this.el.setAttribute('rotation', rot);
       }
     });
 
-    // アニメーション完了→次のステップへ、最後に自動回転をON
     const rig = document.querySelector('#rig');
     const modelRoot = document.querySelector('#modelRoot');
 
-    // step1 完了で step2 を開始
-    document.querySelector('#step1-pos').addEventListener('animationend', () => {
-      rig.emit('step1done');
-    });
-    // step2 完了で step3 を開始
-    document.querySelector('#step2-pos').addEventListener('animationend', () => {
-      rig.emit('step2done');
-    });
-    // step3 完了で 自動回転 有効化
-    document.querySelector('#step3-pos').addEventListener('animationend', () => {
-      // 少し“タメ”を付けたい場合は setTimeout の遅延を増やす（ms）
+    // 同期：pos と rot の両方が終わったら次へ
+    let s1p=false,s1r=false,s2p=false,s2r=false;
+
+    rig.addEventListener('animationcomplete__step1pos', () => { s1p=true; if(s1p&&s1r) rig.emit('step1done'); });
+    rig.addEventListener('animationcomplete__step1rot', () => { s1r=true; if(s1p&&s1r) rig.emit('step1done'); });
+
+    rig.addEventListener('animationcomplete__step2pos', () => { s2p=true; if(s2p&&s2r) rig.emit('step2done'); });
+    rig.addEventListener('animationcomplete__step2rot', () => { s2r=true; if(s2p&&s2r) rig.emit('step2done'); });
+
+    // 最終ステップ完了 → 少しタメてから自動回転ON
+    rig.addEventListener('animationcomplete__step3pos', () => {
       setTimeout(() => {
-        // auto-spin の enabled を true に切替
         const data = modelRoot.getAttribute('auto-spin');
         data.enabled = true;
         modelRoot.setAttribute('auto-spin', data);
-      }, 600);
+      }, 600); // ← タメ（ms）
     });
   </script>
 </body>
