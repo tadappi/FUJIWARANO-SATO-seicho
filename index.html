@@ -1,82 +1,78 @@
 <!doctype html>
 <html lang="ja">
-<head>
-<meta charset="utf-8" />
-<meta name="viewport" content="width=device-width,initial-scale=1" />
-<title>GLB — Motion → Autorotate</title>
-<script src="https://aframe.io/releases/1.5.0/aframe.min.js"></script>
-<style>
-  html,body{margin:0;height:100%}
-  .hint{
-    position:fixed;left:10px;bottom:10px;color:#e0e0e0;
-    font:12px/1.5 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;
-    background:rgba(0,0,0,.35);padding:6px 8px;border-radius:6px
-  }
-</style>
-</head>
-<body>
-  <div class="hint">最初にカメラが数カット移動 → 終了後にモデルが超ゆっくり自動回転</div>
-
-  <a-scene renderer="colorManagement:true" background="color: #c2c2c2">
-    <!-- ライト -->
-    <a-entity light="type:ambient;intensity:0.6"></a-entity>
-    <a-entity light="type:directional;intensity:0.9" position="2 4 2"></a-entity>
-
-    <!-- モデル（自動回転は後でONにする） -->
-    <a-entity id="modelRoot" auto-spin="speedDegPerSec:4; enabled:false">
-      <a-entity gltf-model="url(./seicho.glb)" position="0 0 0" rotation="0 0 0" scale="1 1 1"></a-entity>
-    </a-entity>
-
-    <!-- 観客（=カメラ） -->
-    <a-entity id="rig"
-              position="0 1.8 8" rotation="0 0 0"
-
-              <!-- STEP1: 前進しつつ少し左へ寄る（自動開始） -->
-              animation__step1pos="property: position; to: -3 2.2 5; dur: 3500; easing: easeInOutQuad"
-              animation__step1rot="property: rotation; to: -5 15 0; dur: 3500; easing: easeInOutQuad"
-
-              <!-- STEP2: 右上へ振り抜き（STEP1完了で開始） -->
-              animation__step2pos="property: position; to: 4 3.5 3; dur: 4000; easing: easeInOutCubic; startEvents: step1done"
-              animation__step2rot="property: rotation; to: -12 -20 0; dur: 4000; easing: easeInOutCubic; startEvents: step1done"
-
-              <!-- STEP3: グッと寄る（STEP2完了で開始） -->
-              animation__step3pos="property: position; to: 0 2.0 2.2; dur: 4000; easing: easeInOutCubic; startEvents: step2done"
-              animation__step3rot="property: rotation; to: -6 0 0; dur: 4000; easing: easeInOutCubic; startEvents: step2done">
-      <a-entity camera look-controls="reverseMouseDrag:false; pointerLockEnabled:false"></a-entity>
-    </a-entity>
-  </a-scene>
-
-  <script>
-    // モデル自動回転
-    AFRAME.registerComponent('auto-spin', {
-      schema: { speedDegPerSec: {default: 4}, enabled: {default: false} },
-      tick: function (t, dt) {
-        if (!this.data.enabled) return;
-        const rot = this.el.getAttribute('rotation');
-        rot.y += this.data.speedDegPerSec * (dt / 1000);
-        this.el.setAttribute('rotation', rot);
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>GLB — Motion → Autorotate</title>
+    <script src="https://aframe.io/releases/1.5.0/aframe.min.js"></script>
+    <style>
+      html,body{margin:0;height:100%}
+      .hint{
+        position:fixed;left:10px;bottom:10px;color:#e0e0e0;
+        font:12px/1.5 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;
+        background:rgba(0,0,0,.35);padding:6px 8px;border-radius:6px
       }
-    });
+    </style>
+  </head>
+  <body>
+    <div class="hint">最初にカメラが数カット移動 → 終了後にモデルがゆっくり自動回転</div>
 
-    const rig = document.querySelector('#rig');
-    const modelRoot = document.querySelector('#modelRoot');
+    <a-scene renderer="colorManagement:true" background="color:#c2c2c2">
+      <!-- 照明 -->
+      <a-entity light="type:ambient;intensity:0.6"></a-entity>
+      <a-entity light="type:directional;intensity:0.9" position="2 4 2"></a-entity>
 
-    // pos と rot の両方が終わったら次へ
-    let s1p=false,s1r=false,s2p=false,s2r=false;
+      <!-- GLBモデル -->
+      <a-entity id="modelRoot" auto-spin="speedDegPerSec:4; enabled:false">
+        <a-entity gltf-model="url(./seicho.glb)" position="0 0 0" rotation="0 0 0" scale="1 1 1"></a-entity>
+      </a-entity>
 
-    rig.addEventListener('animationcomplete__step1pos', () => { s1p=true; if(s1p&&s1r) rig.emit('step1done'); });
-    rig.addEventListener('animationcomplete__step1rot', () => { s1r=true; if(s1p&&s1r) rig.emit('step1done'); });
+      <!-- カメラ -->
+      <a-entity id="rig"
+        position="0 1.8 8"
+        rotation="0 0 0"
+        animation__step1pos="property: position; to: -3 2.2 5; dur: 3500; easing: easeInOutQuad"
+        animation__step1rot="property: rotation; to: -5 15 0; dur: 3500; easing: easeInOutQuad"
+        animation__step2pos="property: position; to: 4 3.5 3; dur: 4000; easing: easeInOutCubic; startEvents: step1done"
+        animation__step2rot="property: rotation; to: -12 -20 0; dur: 4000; easing: easeInOutCubic; startEvents: step1done"
+        animation__step3pos="property: position; to: 0 2.0 2.2; dur: 4000; easing: easeInOutCubic; startEvents: step2done"
+        animation__step3rot="property: rotation; to: -6 0 0; dur: 4000; easing: easeInOutCubic; startEvents: step2done">
+        <a-entity camera look-controls="reverseMouseDrag:false; pointerLockEnabled:false"></a-entity>
+      </a-entity>
+    </a-scene>
 
-    rig.addEventListener('animationcomplete__step2pos', () => { s2p=true; if(s2p&&s2r) rig.emit('step2done'); });
-    rig.addEventListener('animationcomplete__step2rot', () => { s2r=true; if(s2p&&s2r) rig.emit('step2done'); });
+    <script>
+      // 自動回転コンポーネント
+      AFRAME.registerComponent('auto-spin', {
+        schema: { speedDegPerSec: {default: 4}, enabled: {default: false} },
+        tick: function (t, dt) {
+          if (!this.data.enabled) return;
+          const rot = this.el.getAttribute('rotation');
+          rot.y += this.data.speedDegPerSec * (dt / 1000);
+          this.el.setAttribute('rotation', rot);
+        }
+      });
 
-    rig.addEventListener('animationcomplete__step3pos', () => {
-      setTimeout(() => {
-        const data = modelRoot.getAttribute('auto-spin');
-        data.enabled = true;
-        modelRoot.setAttribute('auto-spin', data);
-      }, 600); // ← “タメ” (ms)
-    });
-  </script>
-</body>
+      const rig = document.querySelector('#rig');
+      const modelRoot = document.querySelector('#modelRoot');
+
+      // アニメーション完了イベント同期
+      let s1p=false,s1r=false,s2p=false,s2r=false;
+
+      rig.addEventListener('animationcomplete__step1pos', () => { s1p=true; if(s1p&&s1r) rig.emit('step1done'); });
+      rig.addEventListener('animationcomplete__step1rot', () => { s1r=true; if(s1p&&s1r) rig.emit('step1done'); });
+
+      rig.addEventListener('animationcomplete__step2pos', () => { s2p=true; if(s2p&&s2r) rig.emit('step2done'); });
+      rig.addEventListener('animationcomplete__step2rot', () => { s2r=true; if(s2p&&s2r) rig.emit('step2done'); });
+
+      // 最終ステップ完了 → 少し待って自動回転ON
+      rig.addEventListener('animationcomplete__step3pos', () => {
+        setTimeout(() => {
+          const data = modelRoot.getAttribute('auto-spin');
+          data.enabled = true;
+          modelRoot.setAttribute('auto-spin', data);
+        }, 800);
+      });
+    </script>
+  </body>
 </html>
