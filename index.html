@@ -1,65 +1,65 @@
 <!doctype html>
 <html lang="ja">
-  <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width,initial-scale=1" />
-    <title>GLB — Motion → Autorotate</title>
-    <script src="https://aframe.io/releases/1.5.0/aframe.min.js"></script>
-    <style>
-      html,body{margin:0;height:100%}
-      .hint{
-        position:fixed;left:10px;bottom:10px;color:#e0e0e0;
-        font:12px/1.5 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;
-        background:rgba(0,0,0,.35);padding:6px 8px;border-radius:6px
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>GLB — Motion → Autorotate</title>
+  <script src="https://aframe.io/releases/1.5.0/aframe.min.js"></script>
+  <style>
+    html,body{margin:0;height:100%}
+    .hint{
+      position:fixed;left:10px;bottom:10px;color:#e0e0e0;
+      font:12px/1.5 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;
+      background:rgba(0,0,0,.35);padding:6px 8px;border-radius:6px
+    }
+  </style>
+</head>
+<body>
+  <div class="hint">開始5秒静止 → 6秒で上昇後退 → 3秒静止 → 自動回転</div>
+
+  <a-scene renderer="colorManagement:true" background="color:#c2c2c2">
+    <!-- ライト -->
+    <a-entity light="type:ambient;intensity:0.6"></a-entity>
+    <a-entity light="type:directional;intensity:0.9" position="2 4 2"></a-entity>
+
+    <!-- モデル（自動回転はあとでON） -->
+    <a-entity id="modelRoot" auto-spin="speedDegPerSec:4; enabled:false">
+      <a-entity gltf-model="url(./seicho.glb)" position="0 0 0" rotation="0 0 0" scale="1 1 1"></a-entity>
+    </a-entity>
+
+    <!-- カメラ（望遠寄りに fov を小さく。例: 40） -->
+    <a-entity id="rig"
+      position="0 1.0 5"
+      rotation="-35 0 0"
+      animation__move="property: position; to: 0 3 15; dur: 6000; delay: 5000; easing: easeInOutQuad"
+      animation__look="property: rotation; to: -25 0 0; dur: 6000; delay: 5000; easing: easeInOutQuad">
+      <a-entity camera="fov: 40" look-controls="reverseMouseDrag:false; pointerLockEnabled:false"></a-entity>
+    </a-entity>
+  </a-scene>
+
+  <script>
+    // 自動回転
+    AFRAME.registerComponent('auto-spin', {
+      schema: { speedDegPerSec: {default: 4}, enabled: {default: false} },
+      tick: function (t, dt) {
+        if (!this.data.enabled) return;
+        const rot = this.el.getAttribute('rotation');
+        rot.y += this.data.speedDegPerSec * (dt / 1000);
+        this.el.setAttribute('rotation', rot);
       }
-    </style>
-  </head>
-  <body>
-    <div class="hint">6秒上昇→3秒静止→モデルがゆっくり自動回転</div>
+    });
 
-    <a-scene renderer="colorManagement:true" background="color:#c2c2c2">
-      <!-- ライト -->
-      <a-entity light="type:ambient;intensity:0.6"></a-entity>
-      <a-entity light="type:directional;intensity:0.9" position="2 4 2"></a-entity>
+    const rig = document.querySelector('#rig');
+    const modelRoot = document.querySelector('#modelRoot');
 
-      <!-- モデル（自動回転はあとでONにする） -->
-      <a-entity id="modelRoot" auto-spin="speedDegPerSec:4; enabled:false">
-        <a-entity gltf-model="url(./seicho.glb)" position="0 0 0" rotation="0 0 0" scale="1 1 1"></a-entity>
-      </a-entity>
-
-      <!-- カメラ -->
-      <a-entity id="rig"
-        position="0 1.0 5"
-        rotation="-35 0 0"
-        animation__move="property: position; to: 0 3 15; dur: 6000; easing: easeInOutQuad"
-        animation__look="property: rotation; to: -25 0 0; dur: 6000; easing: easeInOutQuad">
-        <a-entity camera look-controls="reverseMouseDrag:false; pointerLockEnabled:false"></a-entity>
-      </a-entity>
-    </a-scene>
-
-    <script>
-      // 自動回転コンポーネント
-      AFRAME.registerComponent('auto-spin', {
-        schema: { speedDegPerSec: {default: 4}, enabled: {default: false} },
-        tick: function (t, dt) {
-          if (!this.data.enabled) return;
-          const rot = this.el.getAttribute('rotation');
-          rot.y += this.data.speedDegPerSec * (dt / 1000);
-          this.el.setAttribute('rotation', rot);
-        }
-      });
-
-      const rig = document.querySelector('#rig');
-      const modelRoot = document.querySelector('#modelRoot');
-
-      // 6秒の移動完了後 → 3秒待機 → 自動回転ON
-      rig.addEventListener('animationcomplete__move', () => {
-        setTimeout(() => {
-          const data = modelRoot.getAttribute('auto-spin');
-          data.enabled = true;
-          modelRoot.setAttribute('auto-spin', data);
-        }, 3000); // ← 停止時間（3秒）
-      });
-    </script>
-  </body>
+    // 6秒の移動（開始5秒遅延）完了後 → 3秒静止 → 自動回転ON
+    rig.addEventListener('animationcomplete__move', () => {
+      setTimeout(() => {
+        const data = modelRoot.getAttribute('auto-spin');
+        data.enabled = true;
+        modelRoot.setAttribute('auto-spin', data);
+      }, 3000); // 静止 3秒
+    });
+  </script>
+</body>
 </html>
