@@ -29,7 +29,7 @@
     <a-entity id="modelRoot"
       position="0 0 0"
       auto-spin="speedDegPerSec:4; rampMs:1200; enabled:false">
-      <a-entity axes-helper="size:10"></a-entity>
+      <a-entity axes-helper="size:0.1"></a-entity>
       <a-entity gltf-model="url(./seicho.glb)" position="0 0 0" rotation="0 0 0" scale="1 1 1"></a-entity>
     </a-entity>
 
@@ -46,7 +46,7 @@
   <script>
     // ===== XYZ軸（赤X・緑Y・青Z） =====
     AFRAME.registerComponent('axes-helper', {
-      schema: { size: {default: 0} },
+      schema: { size: {default: 1} },
       init() {
         const axes = new THREE.AxesHelper(this.data.size);
         this.el.setObject3D('mesh', axes);
