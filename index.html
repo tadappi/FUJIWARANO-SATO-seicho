@@ -46,7 +46,7 @@
   <script>
     // ===== XYZ軸（赤X・緑Y・青Z） =====
     AFRAME.registerComponent('axes-helper', {
-      schema: { size: {default: 1} },
+      schema: { size: {default: 0} },
       init() {
         const axes = new THREE.AxesHelper(this.data.size);
         this.el.setObject3D('mesh', axes);
