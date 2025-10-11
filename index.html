@@ -20,7 +20,12 @@
     クリックで「回転 停止 / 再開」切替（ドラッグ・ズーム不可）
   </div>
 
-  <a-scene renderer="colorManagement:true" background="color:#c2c2c2">
+  <a-scene renderer="colorManagement:true" background="color:#c2c2c2"  
+    device-orientation-permission-ui="enabled: false"
+  xr-mode-ui="enabled: false"
+  vr-mode-ui="enabled: false">
+
+  
     <!-- ライト -->
     <a-entity light="type:ambient;intensity:0.6"></a-entity>
     <a-entity light="type:directional;intensity:0.9" position="2 4 2"></a-entity>
