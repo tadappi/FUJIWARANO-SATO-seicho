@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>GLB — Motion → Autorotate</title>
+  <title>GLB — Motion → Idle Autorotate (interactive)</title>
   <script src="https://aframe.io/releases/1.5.0/aframe.min.js"></script>
   <style>
     html,body{margin:0;height:100%}
@@ -15,49 +15,106 @@
   </style>
 </head>
 <body>
-  <div class="hint">開始5秒静止 → 6秒で上昇後退 → 3秒静止 → 自動回転</div>
+  <div class="hint">
+    開始5秒静止→6秒移動→3秒静止→自動回転<br>
+    自動回転中でもドラッグで操作OK・放置で再開
+  </div>
 
   <a-scene renderer="colorManagement:true" background="color:#c2c2c2">
     <!-- ライト -->
     <a-entity light="type:ambient;intensity:0.6"></a-entity>
     <a-entity light="type:directional;intensity:0.9" position="2 4 2"></a-entity>
 
-    <!-- モデル（自動回転はあとでON） -->
-    <a-entity id="modelRoot" auto-spin="speedDegPerSec:4; enabled:false">
+    <!-- GLB -->
+    <a-entity id="modelRoot">
       <a-entity gltf-model="url(./seicho.glb)" position="0 0 0" rotation="0 0 0" scale="1 1 1"></a-entity>
     </a-entity>
 
-    <!-- カメラ（望遠寄りに fov を小さく。例: 40） -->
+    <!-- カメラ リグ（※自動回転はリグを回す＝ユーザーのヨーを引き継げる） -->
     <a-entity id="rig"
       position="0 1.0 5"
       rotation="-35 0 0"
       animation__move="property: position; to: 0 3 15; dur: 6000; delay: 5000; easing: easeInOutQuad"
-      animation__look="property: rotation; to: -25 0 0; dur: 6000; delay: 5000; easing: easeInOutQuad">
+      animation__look="property: rotation; to: -25 0 0; dur: 6000; delay: 5000; easing: easeInOutQuad"
+      idle-autorotate="speedDegPerSec:4; idleMs:3000; rampMs:1200; enabled:false">
       <a-entity camera="fov: 40" look-controls="reverseMouseDrag:false; pointerLockEnabled:false"></a-entity>
     </a-entity>
   </a-scene>
 
   <script>
-    // 自動回転
-    AFRAME.registerComponent('auto-spin', {
-      schema: { speedDegPerSec: {default: 4}, enabled: {default: false} },
+    // －－－－ 自動回転（アイドル時）コンポーネント －－－－
+    // 対象エンティティ（ここでは #rig）の rotation.y をゆっくり回す
+    AFRAME.registerComponent('idle-autorotate', {
+      schema: {
+        speedDegPerSec: {default: 4},   // 最終到達の回転速度（度/秒）
+        idleMs:        {default: 3000}, // 何も操作が無ければ再開するまでの待ち時間
+        rampMs:        {default: 1200}, // 再開時の速度立ち上げ時間
+        enabled:       {default: false}
+      },
+      init: function () {
+        this.isActive = this.data.enabled;
+        this._idleTimer = null;
+        this._rampT = 0; // 0→1 で速度を補間
+        this._lastUserTS = performance.now();
+        // ユーザー操作検知 → 一時停止 → idle カウント再開
+        const pause = () => this.pauseAutorotate();
+        window.addEventListener('pointerdown', pause);
+        window.addEventListener('pointermove', pause);
+        window.addEventListener('wheel', pause, {passive:true});
+        window.addEventListener('keydown', pause);
+        window.addEventListener('touchstart', pause, {passive:true});
+        window.addEventListener('touchmove', pause,  {passive:true});
+      },
+      pauseAutorotate: function () {
+        this.isActive = false;
+        this._rampT = 0;
+        this._lastUserTS = performance.now();
+        if (this._idleTimer) clearTimeout(this._idleTimer);
+        // 一定時間操作が無ければ再開
+        this._idleTimer = setTimeout(() => {
+          this.isActive = true;  // その時点のヨーから継続
+          this._rampT = 0;       // ゆるく戻す（速度立ち上げ開始）
+        }, this.data.idleMs);
+      },
       tick: function (t, dt) {
         if (!this.data.enabled) return;
+        if (!this.isActive) return;
+        const dsec = dt / 1000;
+        // 速度立ち上げ（0→1をイージング）
+        if (this._rampT < 1) {
+          const k = Math.min(1, this._rampT + dsec / (this.data.rampMs / 1000));
+          // easeInOutCubic
+          const ease = k < 0.5 ? 4*k*k*k : 1 - Math.pow(-2*k + 2, 3) / 2;
+          this._rampT = k;
+          this._speedFactor = ease;
+        } else {
+          this._speedFactor = 1;
+        }
         const rot = this.el.getAttribute('rotation');
-        rot.y += this.data.speedDegPerSec * (dt / 1000);
+        rot.y += this.data.speedDegPerSec * this._speedFactor * dsec; // Yawのみ加算
         this.el.setAttribute('rotation', rot);
+      },
+      // 外部からON/OFF切り替え
+      setEnabled: function (on) {
+        this.data.enabled = on;
+        if (on) {
+          // すぐに idle → 再開判定に入れる
+          this.pauseAutorotate();
+        } else {
+          this.isActive = false;
+          if (this._idleTimer) clearTimeout(this._idleTimer);
+        }
       }
     });
 
+    // －－－－ シーケンス制御 －－－－
     const rig = document.querySelector('#rig');
-    const modelRoot = document.querySelector('#modelRoot');
+    const auto = rig.components['idle-autorotate'];
 
-    // 6秒の移動（開始5秒遅延）完了後 → 3秒静止 → 自動回転ON
+    // 6秒の移動完了（開始5秒遅延込み）→ 3秒静止 → 自動回転ON
     rig.addEventListener('animationcomplete__move', () => {
       setTimeout(() => {
-        const data = modelRoot.getAttribute('auto-spin');
-        data.enabled = true;
-        modelRoot.setAttribute('auto-spin', data);
+        auto.setEnabled(true); // idle-autorotate を有効化（以後、放置で回り・操作で止まる）
       }, 3000); // 静止 3秒
     });
   </script>
