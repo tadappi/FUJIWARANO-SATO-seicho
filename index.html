@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>GLB — Motion → Idle Autorotate (interactive)</title>
+  <title>GLB — Object Autorotate (Center Axis + Axes Helper)</title>
   <script src="https://aframe.io/releases/1.5.0/aframe.min.js"></script>
   <style>
     html,body{margin:0;height:100%}
@@ -16,31 +16,48 @@
 </head>
 <body>
   <div class="hint">
-    開始5秒静止→6秒移動→3秒静止→自動回転<br>
-    自動回転中でもドラッグで操作OK・放置で再開
+    開始5秒静止→6秒移動→3秒静止→<b>モデルが中心軸でゆっくり自転</b><br>
+    XYZ軸（赤:X 緑:Y 青:Z）も表示
   </div>
 
   <a-scene renderer="colorManagement:true" background="color:#c2c2c2">
+    <!-- ライト -->
     <a-entity light="type:ambient;intensity:0.6"></a-entity>
     <a-entity light="type:directional;intensity:0.9" position="2 4 2"></a-entity>
 
-    <a-entity id="modelRoot">
+    <!-- XYZ軸表示 -->
+    <a-entity axes-helper="size:10"></a-entity>
+
+    <!-- モデル（中心で回転する） -->
+    <a-entity id="modelRoot"
+      auto-spin="speedDegPerSec:4; idleMs:3000; rampMs:1200; enabled:false"
+      position="0 0 0">
       <a-entity gltf-model="url(./seicho.glb)" position="0 0 0" rotation="0 0 0" scale="1 1 1"></a-entity>
     </a-entity>
 
+    <!-- カメラ -->
     <a-entity id="rig"
       position="0 1.0 5"
       rotation="-35 0 0"
       animation__move="property: position; to: 0 3 15; dur: 6000; delay: 5000; easing: easeInOutQuad"
-      animation__look="property: rotation; to: -25 0 0; dur: 6000; delay: 5000; easing: easeInOutQuad"
-      idle-autorotate="speedDegPerSec:4; idleMs:3000; rampMs:1200; enabled:false">
+      animation__look="property: rotation; to: -25 0 0; dur: 6000; delay: 5000; easing: easeInOutQuad">
       <a-entity camera="fov:40" look-controls="reverseMouseDrag:false; pointerLockEnabled:false"></a-entity>
     </a-entity>
   </a-scene>
 
   <script>
-    // ---------- idle autorotate ----------
-    AFRAME.registerComponent('idle-autorotate', {
+    // ---------- 軸ヘルパー ----------
+    AFRAME.registerComponent('axes-helper', {
+      schema: { size: {default: 1} },
+      init: function () {
+        const size = this.data.size;
+        const axesHelper = new THREE.AxesHelper(size);
+        this.el.setObject3D('mesh', axesHelper);
+      }
+    });
+
+    // ---------- モデル自動回転 ----------
+    AFRAME.registerComponent('auto-spin', {
       schema: {
         speedDegPerSec:{default:4},
         idleMs:{default:3000},
@@ -90,10 +107,12 @@
       }
     });
 
-    // ---------- sequence ----------
+    // ---------- シーケンス制御 ----------
     document.querySelector('a-scene').addEventListener('loaded',()=>{
       const rig=document.querySelector('#rig');
-      const auto=rig.components['idle-autorotate'];
+      const modelRoot=document.querySelector('#modelRoot');
+      const auto=modelRoot.components['auto-spin'];
+
       rig.addEventListener('animationcomplete__move',()=>{
         setTimeout(()=>{ auto.setEnabled(true); },3000);
       });
