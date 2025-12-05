@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>GLB — Object Autorotate (Click to Pause/Resume) + Axes</title>
+  <title>GLB — Autorotate + Wheel Zoom Only</title>
   <script src="https://aframe.io/releases/1.5.0/aframe.min.js"></script>
   <style>
     html,body{margin:0;height:100%}
@@ -16,34 +16,37 @@
 </head>
 <body>
   <div class="hint">
-    開始5秒静止 → 6秒移動 → 3秒静止 → モデルが中心で自動回転<br>
-    クリックで「回転 停止 / 再開」切替（ドラッグ・ズーム不可）
+    ・モデルは最初からずっと自動回転<br>
+    ・マウスホイール：ズームイン／アウトのみ（カメラの距離）
   </div>
 
-  <a-scene renderer="colorManagement:true" background="color:#c2c2c2"  
+  <a-scene renderer="colorManagement:true" background="color:#c2c2c2"
     device-orientation-permission-ui="enabled: false"
-  xr-mode-ui="enabled: false"
-  vr-mode-ui="enabled: false">
+    xr-mode-ui="enabled: false"
+    vr-mode-ui="enabled: false">
 
-  
     <!-- ライト -->
-    <a-entity light="type:ambient;intensity:0.6"></a-entity>
-    <a-entity light="type:directional;intensity:0.9" position="2 4 2"></a-entity>
+    <a-entity light="type:ambient;intensity:0.3"></a-entity>
+    <a-entity light="type:directional;intensity:0.4" position="2 4 2"></a-entity>
 
     <!-- モデル：原点中心で回転。XYZ軸は子にして一緒に回す -->
     <a-entity id="modelRoot"
       position="0 0 0"
-      auto-spin="speedDegPerSec:4; rampMs:1200; enabled:false">
+      rotation="0 135 0"
+      auto-spin="speedDegPerSec:4">
       <a-entity axes-helper="size:0.1"></a-entity>
-      <a-entity gltf-model="url(./seicho.glb)" position="0 0 0" rotation="0 0 0" scale="1 1 1"></a-entity>
+
+      <!-- ここは自分の glb に合わせてパス/スケール調整 -->
+      <a-entity gltf-model="url(./seicho.glb)"
+                position="0 0 0"
+                rotation="0 0 0"
+                scale="0.2 0.2 0.2"></a-entity>
     </a-entity>
 
-    <!-- カメラ（固定。look-controls等は付けない） -->
+    <!-- カメラ：Zだけ動かしてズーム -->
     <a-entity id="rig"
-      position="0.8 1.0 4"
-      rotation="-55 0 0"
-      animation__move="property: position; to: 1 5 10; dur: 6000; delay: 5000; easing: easeInOutQuad"
-      animation__look="property: rotation; to: -35 0 0; dur: 6000; delay: 5000; easing: easeInOutQuad">
+      position="0 6 18"
+      rotation="-25 0 0">
       <a-entity id="cam" camera="fov:40"></a-entity>
     </a-entity>
   </a-scene>
@@ -58,63 +61,40 @@
       }
     });
 
-    // ===== モデルの自動回転（クリックで一時停止/再開・再開時はなめらかに） =====
+    // ===== モデルの自動回転（ずっと回りっぱなし） =====
     AFRAME.registerComponent('auto-spin', {
-      schema: { speedDegPerSec:{default:4}, rampMs:{default:1200}, enabled:{default:false} },
-      init(){
-        this.running = this.data.enabled;   // 現在回っているか
-        this._rampT  = 0;                   // 速度立ち上げ用(0→1)
-        // シーンのキャンバス押下でトグル
-        const canvas = this.el.sceneEl.canvas;
-        const onReady = () => {
-          canvas.addEventListener('click', () => {
-            if (this.running) {             // 回っていたら停止
-              this.running = false;
-            } else {                        // 停止中なら再開（ゆっくり立ち上げ）
-              this.running = true;
-              this._rampT = 0;
-            }
-          });
-        };
-        if (canvas) onReady(); else this.el.sceneEl.addEventListener('render-target-loaded', onReady);
+      schema: {
+        speedDegPerSec: { default: 4 } // 回転速度（度/秒）
       },
-      tick(t,dt){
-        if (!this.running) return;
+      tick: function (t, dt) {
         const rot = this.el.getAttribute('rotation');
-        const dsec = dt/1000;
-        // 速度のなめらか立ち上げ
-        let k=1;
-        if (this._rampT < 1){
-          this._rampT = Math.min(1, this._rampT + dsec/(this.data.rampMs/1000));
-          const x=this._rampT; k = x<0.5 ? 4*x*x*x : 1 - Math.pow(-2*x+2,3)/2; // easeInOutCubic
-        }
-        rot.y += this.data.speedDegPerSec * k * dsec; // Yawのみ
+        const dsec = dt / 1000;
+        rot.y += this.data.speedDegPerSec * dsec; // Yawのみ
         this.el.setAttribute('rotation', rot);
-      },
-      setEnabled(on){
-        this.running = on;
-        if (on) this._rampT = 0;
       }
     });
 
-    // ===== シーケンス（ロード後に安全に実行） =====
-    document.querySelector('a-scene').addEventListener('loaded', ()=>{
-      const rig = document.querySelector('#rig');
-      const modelRoot = document.querySelector('#modelRoot');
-      const auto = modelRoot.components['auto-spin'];
+    // ===== シーン読み込み後：ホイールズームだけ設定 =====
+    document.querySelector('a-scene').addEventListener('loaded', () => {
+      const scene  = document.querySelector('a-scene');
+      const canvas = scene.canvas;
+      const rig    = document.querySelector('#rig');
 
-      // 初期モーション完了 → 3秒待って自動回転ON
-      rig.addEventListener('animationcomplete__move', ()=>{
-        setTimeout(()=>{ auto.setEnabled(true); }, 3000);
-      });
+      if (!canvas) return;
 
-      // すべてのユーザー操作（ドラッグ/ズーム/キー）は無効化
-      const prevent = e => { e.preventDefault(); e.stopPropagation(); };
-      const canvas = document.querySelector('canvas');
-      ['pointerdown','pointermove','pointerup','wheel','keydown','keyup','gesturestart','gesturechange','gestureend','touchstart','touchmove','touchend']
-        .forEach(type => window.addEventListener(type, prevent, {passive:false}));
-      // テキスト選択カーソルなども出さない
-      if (canvas) canvas.style.touchAction = 'none';
+      // ズーム範囲と速度
+      const minZ = 4;   // これ以上近づかない
+      const maxZ = 20;  // これ以上遠ざからない
+      const zoomSpeed = 0.01; // deltaYに掛ける係数
+
+      canvas.addEventListener('wheel', (e) => {
+        e.preventDefault();
+
+        const pos = rig.getAttribute('position');
+        pos.z += e.deltaY * zoomSpeed;
+        pos.z = Math.max(minZ, Math.min(maxZ, pos.z));
+        rig.setAttribute('position', pos);
+      }, { passive: false });
     });
   </script>
 </body>
